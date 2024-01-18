@@ -1,5 +1,36 @@
 package emailValidation
 
+/*
+* Verifalia - Email list cleaning and real-time email verification service
+* https://verifalia.com/
+* support@verifalia.com
+*
+* Copyright (c) 2005-2024 Cobisi Research
+*
+* Cobisi Research
+* Via Della Costituzione, 31
+* 35010 Vigonza
+* Italy - European Union
+*
+* Permission is hereby granted, free of charge, to any person obtaining a copy
+* of this software and associated documentation files (the "Software"), to deal
+* in the Software without restriction, including without limitation the rights
+* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+* copies of the Software, and to permit persons to whom the Software is
+* furnished to do so, subject to the following conditions:
+*
+* The above copyright notice and this permission notice shall be included in
+* all copies or substantial portions of the Software.
+*
+* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+* THE SOFTWARE.
+ */
+
 import (
 	"bytes"
 	"context"
@@ -54,6 +85,12 @@ type SubmissionOptions struct {
 
 	// An optional URL which Verifalia will invoke once the results for this job are ready.
 	CompletionCallback url.URL
+
+	// TODO: Introduce a new CompletionCallback object which includes the additional options available in Verifalia API v2.4+ (breaking change)
+
+	// Defines how much time to ask the Verifalia API to wait for the completion of the job on the server side, during the
+	// initial job submission request.
+	SubmissionWaitTime time.Duration
 }
 
 // FileSubmissionOptions allows to define file-specific submission options for an e-mail verification job.
@@ -129,10 +166,10 @@ var LineEnding = struct {
 	// CR + LF sequence (\r\n), commonly used in files generated on Windows.
 	CrLf: "CrLf",
 
-	// CR sequence (\r), commonly used in files generated on classic MacOS.
+	// CR sequence (\r), commonly used in files generated on classic macOS.
 	Cr: "Cr",
 
-	// LF (\n), commonly used in files generated on Unix and Unix-like systems (including Linux and MacOS).
+	// LF (\n), commonly used in files generated on Unix and Unix-like systems (including Linux and macOS).
 	Lf: "Lf",
 }
 
@@ -195,7 +232,7 @@ func (client *Client) SubmitMany(inputData []string) (*Job, error) {
 // SubmitManyWithOptions starts processing a new verification with multiple e-mail addresses; this function does not wait for the completion of the email validation
 // job: use the WaitForCompletion() function to do that.
 func (client *Client) SubmitManyWithOptions(entries []ValidationRequestEntry, options *SubmissionOptions) (*Job, error) {
-	var context context.Context
+	var ctx context.Context
 
 	request := validationRequest{
 		Entries: entries,
@@ -211,15 +248,21 @@ func (client *Client) SubmitManyWithOptions(entries []ValidationRequestEntry, op
 
 	// Invoke the API through the common submission code path
 
+	var queryParams map[string][]string
+
 	if options != nil {
-		context = options.Context
+		ctx = options.Context
+
+		queryParams = make(map[string][]string)
+		queryParams["waitTime"] = []string{fmt.Sprintf("%v", options.SubmissionWaitTime.Seconds())}
 	}
 
 	return client.submit(rest.InvocationOptions{
-		Method:   http.MethodPost,
-		Resource: "email-validations",
-		Body:     bytes.NewReader(jsonData),
-		Context:  context,
+		Method:      http.MethodPost,
+		Resource:    "email-validations",
+		QueryParams: queryParams,
+		Body:        bytes.NewReader(jsonData),
+		Context:     ctx,
 	})
 }
 
@@ -291,7 +334,7 @@ func (client *Client) SubmitFileReaderWithOptions(reader io.Reader, fileOptions 
 		return nil, err
 	}
 
-	var context context.Context
+	var ctx context.Context
 
 	request := fileValidationRequest{
 		StartingRow: fileOptions.StartingRow,
@@ -322,17 +365,21 @@ func (client *Client) SubmitFileReaderWithOptions(reader io.Reader, fileOptions 
 	// Invoke the API through the common submission code path
 
 	if options != nil {
-		context = options.Context
+		ctx = options.Context
 	}
 
+	queryParams := make(map[string][]string)
+	queryParams["waitTime"] = []string{fmt.Sprintf("%v", options.SubmissionWaitTime.Seconds())}
+
 	return client.submit(rest.InvocationOptions{
-		Method:   http.MethodPost,
-		Resource: "email-validations",
-		Body:     body,
+		Method: http.MethodPost,
 		Headers: map[string]string{
 			"Content-Type": writer.FormDataContentType(),
 		},
-		Context: context,
+		Resource:    "email-validations",
+		QueryParams: queryParams,
+		Body:        body,
+		Context:     ctx,
 	})
 }
 

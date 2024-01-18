@@ -1,16 +1,58 @@
-![Verifalia API](https://img.shields.io/badge/Verifalia%20API-v2.3-green)
+![Verifalia API](https://img.shields.io/badge/Verifalia%20API-v2.5-green)
 ![Go version](https://img.shields.io/badge/Go-%3E=1.18-green)
 
 Verifalia API - Go SDK and helper library
 =========================================
 
-**The perfect starting point to integrate Verifalia within your Go project**
+This SDK library integrates with [Verifalia][0] and allows to [verify email addresses][0] in **Go v1.18 and higher**.
 
-[Verifalia][0] provides a simple HTTPS-based API for **validating email addresses in real-time** and checking whether they are deliverable or not; this SDK library integrates with Verifalia and allows to [verify email addresses][0] under **Go v1.18 and higher**.
+[Verifalia](https://verifalia.com/) is an online service that provides email verification and mailing list cleaning; it helps businesses reduce
+their bounce rate, protect their sender reputation, and ensure their email campaigns reach the intended recipients.
+Verifalia can [verify email addresses](https://verifalia.com/) in real-time or in bulk, using its API or client area; it also
+offers various features and settings to customize the verification process according to the user’s needs.
 
-To learn more about Verifalia please see [https://verifalia.com][0]
+Verifalia's email verification process consists of several steps, each taking fractions of a second: it checks the **formatting
+and syntax** (RFC 1123, RFC 2821, RFC 2822, RFC 3490, RFC 3696, RFC 4291, RFC 5321, RFC 5322, and RFC 5336) of each email address,
+the **domain and DNS records**, the **mail exchangers**, and the **mailbox existence**, with support for internationalized domains
+and mailboxes. It also detects risky email types, such as **catch-all**, **disposable**, or **spam traps** / **honeypots**.
 
-## Getting started ##
+Verifalia provides detailed and **accurate reports** for each email verification: it categorizes each email address as `Deliverable`,
+`Undeliverable`, `Risky`, or `Unknown`, and assigns one of its exclusive set of over 40 [status codes](https://verifalia.com/developers#email-validations-status-codes).
+It also explains the undeliverability reason and provides **comprehensive verification details**. The service allows the user to choose the desired
+quality level, the waiting timeout, the deduplication preferences, the data retention settings, and the callback preferences
+for each verification.
+
+Of course, Verifalia never sends emails to the contacts or shares the user's data with anyone.
+
+To learn more about Verifalia please see [https://verifalia.com](https://verifalia.com/)
+
+## Table of contents
+
+* [Getting started](#getting-started)
+  * [Authentication](#authentication)
+    * [Authenticating via Basic Auth](#authenticating-via-basic-auth)
+    * [Authenticating via X.509 client certificate (TLS mutual authentication)](#authenticating-via-x509-client-certificate-tls-mutual-authentication)
+* [Validating email addresses](#validating-email-addresses)
+  * [How to validate / verify an email address](#how-to-validate--verify-an-email-address)
+    * [Advanced processing options](#advanced-processing-options)
+  * [How to validate / verify a list of email addresses](#how-to-validate--verify-a-list-of-email-addresses)
+    * [Advanced processing options](#advanced-processing-options-1)
+  * [How to import and verify a file with a list of email addresses](#how-to-import-and-verify-a-file-with-a-list-of-email-addresses)
+    * [Advanced processing options](#advanced-processing-options-2)
+* [Job lifecycle](#job-lifecycle)
+  * [Submission](#submission)
+    * [Completion callbacks](#completion-callbacks)
+  * [Retrieving a job](#retrieving-a-job)
+  * [Waiting for completion](#waiting-for-completion)
+  * [Don't forget to clean up, when you are done](#dont-forget-to-clean-up-when-you-are-done)
+* [Iterating over your email validation jobs](#iterating-over-your-email-validation-jobs)
+* [Managing credits](#managing-credits)
+  * [Getting the credits balance](#getting-the-credits-balance)
+* [Changelog / What's new](#changelog--whats-new)
+  * [v1.1](#v11)
+  * [v1.0](#v10)
+
+## Getting started
 
 First, add the Verifalia Go SDK as a new module to your Go project:
 
@@ -26,7 +68,7 @@ To update the SDK use `go get -u` to retrieve the latest version of the SDK:
 go get -u github.com/verifalia/verifalia-go-sdk/verifalia
 ```
 
-### Authentication ###
+### Authentication
 
 First things first: authentication to the Verifalia API is performed by way of either
 the credentials of your root Verifalia account or of one of your users (previously
@@ -34,7 +76,12 @@ known as sub-accounts): if you don't have a Verifalia account, just [register fo
 
 Learn more about authenticating to the Verifalia API at [https://verifalia.com/developers#authentication][2]
 
-Once you have your Verifalia credentials at hand, use them to create a new `client` object, which will be the starting point to every other operation against the Verifalia API: the supplied credentials will be automatically provided to the API using the HTTP Basic Auth method.
+#### Authenticating via Basic Auth
+
+The most straightforward method for authenticating against the Verifalia API involves using a username and password pair.
+These credentials can be applied during the creation of a new instance of the `client` object, serving as the
+initial step for all interactions with the Verifalia API: the provided username and password will be automatically
+transmitted to the API using the HTTP Basic Auth method.
 
 ```go
 package main
@@ -50,11 +97,13 @@ func main() {
 }
 ```
 
-In addition to the HTTP Basic Auth method, this SDK also supports other different ways to authenticate to the Verifalia API, as explained in the subsequent paragraphs.
-
 #### Authenticating via X.509 client certificate (TLS mutual authentication)
 
-This authentication method uses a cryptographic X.509 client certificate to authenticate against the Verifalia API, through the TLS protocol. This method, also called mutual TLS authentication (mTLS) or two-way authentication, offers the highest degree of security, as only a cryptographically-derived key (and not the actual credentials) is sent over the wire on each request.
+In addition to the HTTP Basic Auth method, this SDK also supports using a cryptographic X.509 client
+certificate to authenticate against the Verifalia API, through the TLS protocol. This method, also
+called mutual TLS authentication (mTLS) or two-way authentication, offers the highest degree of
+security, as only a cryptographically-derived key (and not the actual credentials) is sent over
+the wire on each request. [What is X.509 TLS client-certificate authentication?](https://verifalia.com/help/sub-accounts/what-is-x509-tls-client-certificate-authentication)
 
 ```go
 package main
@@ -77,11 +126,11 @@ func main() {
 }
 ```
 
-## Validating email addresses ##
+## Validating email addresses
 
 Every operation related to verifying / validating email addresses is performed through the `EmailValidation` field exposed by the `client` instance you created above. The property exposes some useful functions: in the next few paragraphs we are looking at the most used ones, so it is strongly advisable to explore the library and look at the embedded help for other opportunities.
 
-### How to validate / verify an email address ###
+### How to validate / verify an email address
 
 To verify an email address from a Go application you can call the `Run()` function exposed by
 the `client.EmailValidation` field, as shown below:
@@ -108,7 +157,7 @@ func main() {
     // Print some results
 
     entry := validation.Entries[0]
-    fmt.Printf("%v => %v", entry.EmailAddress, entry.Classification)
+    fmt.Printf("%v => %v\n", entry.EmailAddress, entry.Classification)
 
     // Output:
     // batman@gmail.com => Deliverable
@@ -117,6 +166,75 @@ func main() {
 
 Once `Run()` completes successfully, the resulting verification job
 is guaranteed to be completed and its results' data (e.g. its `Entries` field) to be available for use.
+
+As you may expect, each entry may include various additional details about the verified email address:
+
+| Attribute                     | Description                                                                                                                                                                                                                                               |
+|-------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `AsciiEmailAddressDomainPart` | Gets the domain part of the email address, converted to ASCII if needed and with comments and folding white spaces stripped off.                                                                                                                          |
+| `Classification`              | A string with the classification for this entry; see the `Classification` struct for a list of the values supported at the time this SDK has been released.                                                                                               |
+| `CompletedOn`                 | The date this entry has been completed, if available.                                                                                                                                                                                                     |
+| `Custom`                      | A custom, optional string which is passed back upon completing the validation. To pass back and forth a custom value, use the `Custom` field of `ValidationRequestEntry`.                                                                                 |
+| `DuplicateOf`                 | The zero-based index of the first occurrence of this email address in the parent `Job`, in the event the `Status` field for this entry is `Duplicate`; duplicated items do not expose any result detail apart from this and the eventual `Custom` values. |
+| `Index`                       | The index of this entry within its `Job` container; this property is mostly useful in the event the API returns a filtered view of the items.                                                                                                             |
+| `InputData`                   | The input string being validated.                                                                                                                                                                                                                         |
+| `EmailAddress`                | Gets the email address, without any eventual comment or folding white space. Returns nil if the input data is not a syntactically invalid e-mail address.                                                                                                 |
+| `EmailAddressDomainPart`      | Gets the domain part of the email address, without comments and folding white spaces.                                                                                                                                                                     |
+| `EmailAddressLocalPart`       | Gets the local part of the email address, without comments and folding white spaces.                                                                                                                                                                      |
+| `HasInternationalDomainName`  | If true, the email address has an international domain name.                                                                                                                                                                                              |
+| `HasInternationalMailboxName` | If true, the email address has an international mailbox name.                                                                                                                                                                                             |
+| `IsDisposableEmailAddress`    | If true, the email address comes from a disposable email address (DEA) provider. <a href="https://verifalia.com/help/email-validations/what-is-a-disposable-email-address-dea">What is a disposable email address?</a>                                    |
+| `IsFreeEmailAddress`          | If true, the email address comes from a free email address provider (e.g. gmail, yahoo, outlook / hotmail, ...).                                                                                                                                          |
+| `IsRoleAccount`               | If true, the local part of the email address is a well-known role account.                                                                                                                                                                                |
+| `Status`                      | The status for this entry; see the `Status` struct for a list of the values supported at the time this SDK has been released.                                                                                                                             |
+| `Suggestions`                 | The potential corrections for the input data, in the event Verifalia identified potential typos during the verification process.                                                                                                                          |
+| `SyntaxFailureIndex`          | The position of the character in the email address that eventually caused the syntax validation to fail.                                                                                                                                                  |
+
+Here is another example, showing some of the additional result details provided by Verifalia:
+
+```go
+package main
+
+import (
+  "fmt"
+  "github.com/verifalia/verifalia-go-sdk/verifalia"
+)
+
+func main() {
+  client := verifalia.NewClient("<USERNAME>", "<PASSWORD>") // See above
+
+  // Verifies an email address
+
+  validation, err := client.EmailValidation.Run("bat[man@gmal.com")
+
+  if err != nil {
+    panic(err)
+  }
+
+  // Print some results
+
+  entry := validation.Entries[0]
+
+  fmt.Printf("Classification: %v\n", entry.Classification)
+  fmt.Printf("Status: %v\n", entry.Status)
+  fmt.Printf("Syntax failure index: %v\n", *entry.SyntaxFailureIndex)
+
+  if entry.Suggestions != nil {
+    fmt.Printf("Suggestions:\n")
+
+    for _, suggestion := range entry.Suggestions {
+      fmt.Printf("- %v\n", suggestion)
+    }
+  }
+
+  // Output:
+  // Classification: Undeliverable
+  // Status: InvalidCharacterInSequence
+  // Syntax failure index: 3
+  // Suggestions:
+  // - batman@gmail.com
+}
+```
 
 #### Advanced processing options
 
@@ -163,7 +281,7 @@ func main() {
 }
 ```
 
-### How to validate / verify a list of email addresses ###
+### How to validate / verify a list of email addresses
 
 To verify a list of email addresses you can call the `RunMany()` function, which accepts an array of strings with email addresses to verify:
 
@@ -204,7 +322,6 @@ func main() {
     // samantha42@yahoo.de => Deliverable
 }
 ```
-
 
 #### Advanced processing options
 
@@ -409,12 +526,13 @@ To learn more about completion callbacks, please see https://verifalia.com/devel
 To specify a completion callback URL, use one of the `Submit*WithOptions()` or `Run*WithOptions`
 functions and set the `CompletionCallback` of the specified `SubmissionOptions` instance.
 
-Note that completion callbacks are invoked asynchronously and it could take up to
+Note that completion callbacks are invoked asynchronously, and it could take up to
 several seconds for your callback URL to get invoked.
 
 ### Retrieving a job
 
-Once you have an email validation job `Id`, which is always returned by any of the `Submit*()` functions as part of the validation's `Overview` property, you can retrieve an updated snapshot of the job by way of the `Get()` function.
+Once you have an email validation job `Id`, which is always returned by any of the `Submit*()` functions as part of the validation's `Overview` property, you can retrieve an updated snapshot of the job by way of the `Get()` and `GetOverview()` functions, which return,
+respectively, a `Job` instance or an `Overview` instance for the desired email verification job.
 
 In the following example, we are requesting the current snapshot of a given email validation job back from Verifalia:
 
@@ -422,7 +540,6 @@ In the following example, we are requesting the current snapshot of a given emai
 package main
 
 import (
-    "fmt"
     "github.com/verifalia/verifalia-go-sdk/verifalia"
     "github.com/verifalia/verifalia-go-sdk/verifalia/emailValidation"
 )
@@ -495,7 +612,7 @@ func main() {
 }
 ```
 
-### Don't forget to clean up, when you are done ###
+### Don't forget to clean up, when you are done
 
 Verifalia automatically deletes completed email verification jobs after a configurable
 data-retention period (minimum 5 minutes, maximum 30 days) but it is strongly advisable that
@@ -507,7 +624,6 @@ To do that, you can call the `Delete()` function, passing the job Id you wish to
 package main
 
 import (
-    "fmt"
     "github.com/verifalia/verifalia-go-sdk/verifalia"
 )
 
@@ -584,22 +700,22 @@ func main() {
     }
 
     // Output:
-    // Id: 7a7987a3-cc86-4ae8-b3d7-ff0088620503, submitted: 2022-06-18 12:56:43.908432 +0000 UTC, status: InProgress, entries: 23
-    // Id: 2c4b1d73-a7b3-40e3-a1b8-748dc499d9f7, submitted: 2022-06-18 12:56:15.698191 +0000 UTC, status: Completed, entries: 12
-    // Id: b918a5cb-a853-4cb0-a591-7c8ca21978db, submitted: 2022-06-18 12:56:12.981241 +0000 UTC, status: Completed, entries: 126
-    // Id: e3d769b7-e033-422a-b1d8-0a088f566f8d, submitted: 2022-06-18 12:56:02.613184 +0000 UTC, status: Completed, entries: 1
-    // Id: 0001aef1-e94f-40c4-b45e-9999f7e37de4, submitted: 2022-06-18 12:56:01.602428 +0000 UTC, status: Completed, entries: 65
-    // Id: 0e6c0b38-f3ce-4847-bee8-95947f772242, submitted: 2022-06-18 12:56:01.019199 +0000 UTC, status: Completed, entries: 18
-    // Id: 7fedfcb8-4be8-449f-99f4-7ae09e5e8cb5, submitted: 2022-06-18 12:55:54.18652 +0000 UTC, status: Completed, entries: 1
+    // Id: 7a7987a3-cc86-4ae8-b3d7-ff0088620503, submitted: 2024-06-18 12:56:43.908432 +0000 UTC, status: InProgress, entries: 23
+    // Id: 2c4b1d73-a7b3-40e3-a1b8-748dc499d9f7, submitted: 2024-06-18 12:56:15.698191 +0000 UTC, status: Completed, entries: 12
+    // Id: b918a5cb-a853-4cb0-a591-7c8ca21978db, submitted: 2024-06-18 12:56:12.981241 +0000 UTC, status: Completed, entries: 126
+    // Id: e3d769b7-e033-422a-b1d8-0a088f566f8d, submitted: 2024-06-18 12:56:02.613184 +0000 UTC, status: Completed, entries: 1
+    // Id: 0001aef1-e94f-40c4-b45e-9999f7e37de4, submitted: 2024-06-18 12:56:01.602428 +0000 UTC, status: Completed, entries: 65
+    // Id: 0e6c0b38-f3ce-4847-bee8-95947f772242, submitted: 2024-06-18 12:56:01.019199 +0000 UTC, status: Completed, entries: 18
+    // Id: 7fedfcb8-4be8-449f-99f4-7ae09e5e8cb5, submitted: 2024-06-18 12:55:54.18652 +0000 UTC, status: Completed, entries: 1
     // ...
 }
 ```
 
-## Managing credits ##
+## Managing credits
 
 To manage the Verifalia credits for your account you can use the `client.Credit` field.
 
-### Getting the credits balance ###
+### Getting the credits balance
 
 One of the most common tasks you may need to perform on your account is retrieving the available number of free daily credits and credit packs.
 To do that, call the `GetBalance()` function, which returns a `credit.Balance` object, as shown in the next example:
@@ -637,11 +753,24 @@ To add credit packs to your Verifalia account visit [https://verifalia.com/clien
 
 ## Changelog / What's new
 
+### v1.1
+
+Released on January 18<sup>th</sup>, 2024
+
+- Added support for the Verifalia API v2.5.
+- Added support for the `waitTime` parameter during job submissions, through the `SubmissionWaitTime` field of the `SubmissionOptions` struct.
+- Added support for the `waitTime` parameter during job retrieval, through the `RetrievalWaitTime` field of the `RetrievalOptions` struct.
+- Added `GetWithOptions()` function.
+- Added support for the `PollWaitTime` field in `WaitingOptions` struct.
+- Added support for browser's app key authentication through the new `appKeyAuthProvider` struct.
+- Added `GetOverview()` and `GetOverviewWithOptions()` functions.
+- Bumped dependencies.
+
 ### v1.0
 
 Released on June 18<sup>th</sup>, 2022
 
-- First public version of the library, with partial support for the Verifalia API v2.3
+- First public version of the library, with partial support for the Verifalia API v2.3.
 
 [0]: https://verifalia.com
 [2]: https://verifalia.com/developers#authentication

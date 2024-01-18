@@ -2,4 +2,4 @@ module github.com/verifalia/verifalia-go-sdk
 
 go 1.18
 
-require github.com/ericlagergren/decimal v0.0.0-20211103172832-aca2edc11f73
+require github.com/ericlagergren/decimal v0.0.0-20221120152707-495c53812d05

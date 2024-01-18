@@ -32,11 +32,38 @@ package auth
  */
 
 import (
+	"fmt"
 	"net/http"
+	"time"
 )
 
-type Provider interface {
-	Authenticate(request *http.Request) error
-	HandleUnauthorizedRequest() error
-	BuildClient() *http.Client
+// Browser app's key authentication
+
+type appKeyAuthProvider struct {
+	AppKey string
+}
+
+func (provider appKeyAuthProvider) Authenticate(request *http.Request) error {
+	if provider.AppKey == "" {
+		return fmt.Errorf("empty appKey, please specify a valid value before authenticating")
+	}
+
+	request.SetBasicAuth(provider.AppKey, "")
+	return nil
+}
+
+func (provider appKeyAuthProvider) HandleUnauthorizedRequest() error {
+	return nil
+}
+
+func (provider appKeyAuthProvider) BuildClient() *http.Client {
+	return &http.Client{
+		Timeout: 30 * time.Second,
+	}
+}
+
+func NewAppKeyAuthProvider(appKey string) Provider {
+	return &appKeyAuthProvider{
+		AppKey: appKey,
+	}
 }
